@@ -381,6 +381,7 @@ class InterleavedLocalAndRandomSearch(AcquisitionFunctionMaximizer):
             runhistory: RunHistory,
             stats: Stats,
             num_points: int,
+            random_configuration_chooser,
             *args
     ) -> Iterable[Configuration]:
         next_configs_by_local_search = self.local_search._maximize(
@@ -413,7 +414,8 @@ class InterleavedLocalAndRandomSearch(AcquisitionFunctionMaximizer):
         next_configs_by_acq_value = [_[1] for _ in next_configs_by_acq_value]
 
         challengers = ChallengerList(next_configs_by_acq_value,
-                                     self.config_space)
+                                     self.config_space,
+                                     random_configuration_chooser)
         return challengers
 
     def _maximize(
@@ -423,9 +425,35 @@ class InterleavedLocalAndRandomSearch(AcquisitionFunctionMaximizer):
             num_points: int
     ) -> Iterable[Tuple[float, Configuration]]:
         raise NotImplementedError()
+        
 
-        
-        
+class ChooserNoCoolDown(object):
+
+    def __init__(self, modulus=1):
+        self.modulus = modulus
+
+    def check(self, index):
+        return index % self.modulus < 1
+
+
+class ChooserLinearCoolDown(object):
+
+    def __init__(self, start_modulus=1, modulus_increment=0.3, end_modulus=float('inf')):
+        self.modulus = start_modulus
+        self.modulus_increment = modulus_increment
+        self.end_modulus = end_modulus
+        self.last_index = 0
+
+    def check(self, index):
+        res = False
+        if (index - self.last_index) % self.modulus < 1:
+            self.last_index = index
+            res = True
+        self.modulus += self.modulus_increment
+        self.modulus = min(self.modulus, self.end_modulus)
+        return res
+
+
 class ChallengerList(object):
     """Helper class to interleave random configurations in a list of challengers.
 
@@ -443,25 +471,35 @@ class ChallengerList(object):
         ConfigurationSpace from which to sample new random configurations.
     """
 
-    def __init__(self, challengers, configuration_space):
+    def __init__(self, challengers, configuration_space, random_configuration_chooser=ChooserNoCoolDown(1)):
         self.challengers = challengers
         self.configuration_space = configuration_space
         self._index = 0
-        self._next_is_random = False
+        self._last_was_random = True
+        self.random_configuration_chooser = random_configuration_chooser
 
     def __iter__(self):
         return self
 
-    def __next__(self):
-        if self._index == len(self.challengers) and not self._next_is_random:
-            raise StopIteration
-        elif self._next_is_random:
-            self._next_is_random = False
+    def _sample(self, rand):
+        self._last_was_random = rand
+        if rand:
             config = self.configuration_space.sample_configuration()
             config.origin = 'Random Search'
-            return config
         else:
-            self._next_is_random = True
             config = self.challengers[self._index]
             self._index += 1
-            return config
+        return config
+
+    def __next__(self):
+
+        if self._index == len(self.challengers):
+            if self._last_was_random:
+                raise StopIteration
+            else:
+                # finish with random configuration
+                return self._sample(rand=True)
+        elif not self._last_was_random and self.random_configuration_chooser.check(self._index):
+            return self._sample(rand=True)
+        else:
+            return self._sample(rand=False)

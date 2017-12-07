@@ -7,6 +7,7 @@ from smac.tae.execute_ta_run import ExecuteTARun
 from smac.tae.execute_ta_run import StatusType
 from smac.stats.stats import Stats
 from smac.scenario.scenario import Scenario
+from smac.optimizer.ei_optimization import ChooserNoCoolDown, ChooserLinearCoolDown
 from smac.runhistory.runhistory import RunHistory
 from smac.runhistory.runhistory2epm import RunHistory2EPM4Cost
 from smac.initial_design.initial_design import InitialDesign
@@ -41,7 +42,8 @@ class ROAR(SMAC):
                  initial_configurations: typing.List[Configuration]=None,
                  stats: Stats=None,
                  rng: np.random.RandomState=None,
-                 run_id: int=1):
+                 run_id: int=1,
+                 random_configuration_chooser=None):
         """Constructor
 
         Parameters
@@ -70,6 +72,9 @@ class ROAR(SMAC):
             Random number generator
         run_id: int, (default: 1)
             Run ID will be used as subfolder for output_dir.
+        random_configuration_chooser
+            when to choose a random configuration -- one of
+            ChooserNoCoolDown, ChooserLinearCoolDown
         """
         self.logger = logging.getLogger(self.__module__ + "." + self.__class__.__name__)
 
@@ -102,4 +107,5 @@ class ROAR(SMAC):
             stats=stats,
             rng=rng,
             run_id=run_id,
+            random_configuration_chooser=random_configuration_chooser,
         )
