@@ -71,7 +71,8 @@ class SMAC(object):
                  rng: np.random.RandomState=None,
                  smbo_class: SMBO=None,
                  run_id: int=1,
-                 random_configuration_chooser=None):
+                 random_configuration_chooser: typing.Union[ChooserNoCoolDown,
+                        ChooserLinearCoolDown]=None):
         """Constructor
 
         Parameters
